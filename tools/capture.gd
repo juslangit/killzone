@@ -8,6 +8,7 @@ extends Node
 
 const OUT := "user://shots/"
 const SIZE := Vector2i(1280, 720)
+const CARD_SIZE := Vector2i(1600, 886)
 
 var _held: Array[String] = []
 
@@ -15,11 +16,13 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	for f in DirAccess.get_files_at(OUT):
 		DirAccess.remove_absolute(OUT + f)
-	get_window().size = SIZE
+	get_window().size = CARD_SIZE if "card" in OS.get_cmdline_user_args() else SIZE
 	add_child((load("res://scenes/main.tscn") as PackedScene).instantiate())
 	await get_tree().create_timer(0.8).timeout
 	if "burst" in OS.get_cmdline_user_args():
 		await _burst()
+	elif "card" in OS.get_cmdline_user_args():
+		await _card()
 	else:
 		await _tour()
 	get_tree().quit()
@@ -103,3 +106,14 @@ func _tour() -> void:
 	await _wait(0.4)
 	await _shot("09_fire_on_the_move")
 	_hold([])
+
+
+## One wide hero frame for the portfolio card: firing on the move.
+func _card() -> void:
+	var centre := Vector2(CARD_SIZE) * 0.5
+	Input.warp_mouse(centre + Vector2(430, 130))
+	_hold(["move_left", "move_forward"])
+	await _wait(0.9)
+	_hold(["move_left", "move_forward", "shoot"])
+	await _wait(0.35)
+	await _shot("card_hero")
