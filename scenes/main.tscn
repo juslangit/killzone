@@ -1,0 +1,144 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
+[ext_resource type="Material" path="res://assets/materials/grass.tres" id="2_grass"]
+[ext_resource type="Script" path="res://scripts/camera_rig.gd" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/gunfire.gd" id="4_gunfire"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="5_hud"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.243, 0.42, 0.62, 1)
+sky_horizon_color = Color(0.663, 0.729, 0.761, 1)
+ground_bottom_color = Color(0.145, 0.176, 0.133, 1)
+ground_horizon_color = Color(0.514, 0.541, 0.463, 1)
+sun_angle_max = 22.0
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+ambient_light_color = Color(0.678, 0.757, 0.82, 1)
+ambient_light_sky_contribution = 0.65
+ambient_light_energy = 0.9
+tonemap_mode = 3
+ssao_enabled = true
+ssao_radius = 1.6
+ssao_intensity = 1.4
+fog_enabled = true
+fog_light_color = Color(0.639, 0.702, 0.749, 1)
+fog_density = 0.0035
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = ExtResource("2_grass")
+size = Vector2(60, 60)
+subdivide_width = 24
+subdivide_depth = 24
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(60, 1, 60)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wall"]
+albedo_color = Color(0.267, 0.267, 0.243, 1)
+roughness = 0.9
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.321394, 0.383022, 0, 0.766044, 0.642788, -0.5, -0.556670, 0.663414, 0, 20, 0)
+light_energy = 1.15
+shadow_enabled = true
+directional_shadow_max_distance = 80.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+collision_layer = 1
+
+[node name="Mesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="Collider" type="CollisionShape3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("BoxShape3D_ground")
+
+[node name="Walls" type="Node3D" parent="."]
+
+[node name="NorthMesh" type="CSGBox3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -30)
+use_collision = true
+size = Vector3(60, 1.2, 0.5)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="SouthMesh" type="CSGBox3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 30)
+use_collision = true
+size = Vector3(60, 1.2, 0.5)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="EastMesh" type="CSGBox3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0.6, 0)
+use_collision = true
+size = Vector3(0.5, 1.2, 60)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="WestMesh" type="CSGBox3D" parent="Walls"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0.6, 0)
+use_collision = true
+size = Vector3(0.5, 1.2, 60)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("3_camera")
+target_path = NodePath("../Player")
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.587785, 0.809017, 0, -0.809017, 0.587785, 0, 15, 11)
+fov = 52.0
+
+[node name="Gunfire" type="Node3D" parent="."]
+script = ExtResource("4_gunfire")
+player_path = NodePath("../Player")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Reticle" type="Control" parent="HUD"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("5_hud")
+player_path = NodePath("../../Player")
+
+[node name="Stance" type="Label" parent="HUD/Reticle"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 32.0
+offset_top = -78.0
+offset_right = 320.0
+offset_bottom = -38.0
+theme_override_colors/font_color = Color(0.639, 0.906, 0.667, 0.85)
+theme_override_font_sizes/font_size = 26
+text = "STANDING"
+
+[node name="Controls" type="Label" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -360.0
+offset_top = 28.0
+offset_right = -32.0
+offset_bottom = 220.0
+theme_override_colors/font_color = Color(0.867, 0.902, 0.855, 0.7)
+theme_override_font_sizes/font_size = 22
+text = "WASD   move
+SPACE  jump
+C / CTRL  crouch
+MOUSE  aim
+LMB    fire"
+horizontal_alignment = 2

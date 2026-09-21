@@ -1,0 +1,43 @@
+[gd_resource type="StandardMaterial3D" load_steps=6 format=3]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_patch"]
+noise_type = 1
+seed = 7
+frequency = 0.035
+fractal_octaves = 3
+fractal_lacunarity = 2.4
+fractal_gain = 0.55
+
+[sub_resource type="Gradient" id="Gradient_grass"]
+offsets = PackedFloat32Array(0, 0.35, 0.62, 1)
+colors = PackedColorArray(0.086, 0.196, 0.078, 1, 0.153, 0.298, 0.106, 1, 0.235, 0.404, 0.145, 1, 0.329, 0.482, 0.192, 1)
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_grass"]
+width = 512
+height = 512
+seamless = true
+seamless_blend_skirt = 0.2
+color_ramp = SubResource("Gradient_grass")
+noise = SubResource("FastNoiseLite_patch")
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_blades"]
+noise_type = 5
+seed = 23
+frequency = 0.16
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_blades"]
+width = 512
+height = 512
+seamless = true
+as_normal_map = true
+bump_strength = 0.8
+noise = SubResource("FastNoiseLite_blades")
+
+[resource]
+resource_name = "Grass"
+albedo_texture = SubResource("NoiseTexture2D_grass")
+roughness = 0.95
+normal_enabled = true
+normal_scale = 0.25
+normal_texture = SubResource("NoiseTexture2D_blades")
+uv1_scale = Vector3(6, 6, 1)

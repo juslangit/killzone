@@ -1,0 +1,21 @@
+# Godot 4
+.godot/
+/android/
+/build/
+*.translation
+
+# Exports
+*.dmg
+*.exe
+*.zip
+*.pck
+
+# Secrets
+.env
+*.key
+
+# macOS
+.DS_Store
+
+# Development captures - regenerate with tools/capture.tscn
+dev/shots/
