@@ -404,8 +404,21 @@ def main():
     )
     scale = TARGET_HEIGHT / top
     root.scale = (scale, scale, scale)
-    root.rotation_euler = (0.0, 0.0, math.pi)
     print("SCALE height=%.3f -> %.3f (factor %.4f)" % (top, TARGET_HEIGHT, scale))
+
+    # The model faces -Y in Blender, which the Y-up conversion turns into +Z -
+    # away from the camera, because Godot's forward is -Z. So he has to be spun
+    # half a turn on the way out, or he arrives with his back to the player.
+    #
+    # The trap: the glTF importer leaves every object in QUATERNION rotation
+    # mode, and assigning rotation_euler to such an object does nothing at all.
+    # It fails silently, and `scale` assigned on the very next line works fine,
+    # which is what makes it so easy to miss. Set the mode first.
+    spin = next(o for o in bpy.data.objects if o.name == "Armature_36")
+    spin.rotation_mode = "XYZ"
+    spin.rotation_euler = (0.0, 0.0, math.pi)
+    bpy.context.view_layer.update()
+    print("SPIN %s yaw=%.1f deg" % (spin.name, math.degrees(spin.matrix_world.to_euler().z)))
 
     # ---- export ----------------------------------------------------------
     os.makedirs(OUT_DIR, exist_ok=True)

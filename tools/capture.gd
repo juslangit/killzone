@@ -23,6 +23,12 @@ func _ready() -> void:
 		await _burst()
 	elif "card" in OS.get_cmdline_user_args():
 		await _card()
+	elif "facing" in OS.get_cmdline_user_args():
+		await _facing()
+	elif "strafe" in OS.get_cmdline_user_args():
+		await _strafe()
+	elif "clips" in OS.get_cmdline_user_args():
+		await _clips()
 	else:
 		await _tour()
 	get_tree().quit()
@@ -117,3 +123,72 @@ func _card() -> void:
 	_hold(["move_left", "move_forward", "shoot"])
 	await _wait(0.35)
 	await _shot("card_hero")
+
+
+## Close on the character, aimed in each of the four screen directions. The
+## camera sits behind and above, so aiming below him turns him to face it: that
+## frame must show his face, and the one aiming above must show his back.
+func _facing() -> void:
+	var centre := Vector2(SIZE) * 0.5
+	var rig := get_node("/root/Capture/Main/CameraRig")
+	rig.height = 4.6
+	rig.distance = 5.2
+	rig.aim_lead = 0.0
+	rig._camera.position = Vector3(0.0, rig.height, rig.distance)
+	rig._camera.rotation_degrees = Vector3(-38.0, 0.0, 0.0)
+	rig._camera.fov = 45.0
+	for aim in [["toward_camera_should_show_FACE", Vector2(0, 300)],
+				["away_should_show_BACK", Vector2(0, -300)],
+				["screen_right", Vector2(340, 0)],
+				["screen_left", Vector2(-340, 0)]]:
+		Input.warp_mouse(centre + aim[1])
+		await _wait(1.0)
+		await _shot(String(aim[0]))
+
+
+## Aiming at screen right, his own right hand side points down the screen. So
+## moving down the screen must look like a sidestep to HIS right, and moving up
+## the screen like a sidestep to his left. If the two look identical, or swapped,
+## the strafe clips are mirrored.
+func _strafe() -> void:
+	var centre := Vector2(SIZE) * 0.5
+	var rig := get_node("/root/Capture/Main/CameraRig")
+	rig.height = 5.0
+	rig.distance = 5.6
+	rig.aim_lead = 0.0
+	rig._camera.position = Vector3(0.0, rig.height, rig.distance)
+	rig._camera.rotation_degrees = Vector3(-40.0, 0.0, 0.0)
+	Input.warp_mouse(centre + Vector2(400, 0))
+	for run in [["to_his_RIGHT_down_screen", "move_back"],
+				["to_his_LEFT_up_screen", "move_forward"]]:
+		_hold([])
+		await _wait(0.5)
+		_hold([String(run[1])])
+		await _wait(0.45)
+		for i in 3:
+			await _shot("%s_%d" % [run[0], i])
+			await _wait(0.1)
+	_hold([])
+
+
+## Freeze the player facing the camera and drive the locomotion blend space by
+## hand. Seen head on, a sidestep to HIS right travels to the viewer's left, so
+## these two frames must be mirror images of each other and not identical.
+func _clips() -> void:
+	var player := get_node("/root/Capture/Main/Player") as Player
+	var rig := get_node("/root/Capture/Main/CameraRig")
+	rig.set_physics_process(false)
+	rig.global_position = player.global_position
+	rig._camera.position = Vector3(0.0, 2.4, 5.0)
+	rig._camera.rotation_degrees = Vector3(-18.0, 0.0, 0.0)
+	await _wait(0.3)
+	player.set_physics_process(false)
+	player.rotation.y = PI   # face +Z, straight at the camera
+	var tree := player.get_node("AnimationTree") as AnimationTree
+	for probe in [["strafe_right_should_go_viewer_LEFT", Vector2(1, 0)],
+				  ["strafe_left_should_go_viewer_RIGHT", Vector2(-1, 0)],
+				  ["run_forward_toward_camera", Vector2(0, 1)],
+				  ["run_backward_away", Vector2(0, -1)]]:
+		tree.set("parameters/ground/blend_position", probe[1])
+		await _wait(0.9)
+		await _shot(String(probe[0]))
