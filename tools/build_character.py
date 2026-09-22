@@ -219,8 +219,14 @@ def aim(pose):
 # writing actions
 # --------------------------------------------------------------------------
 
-def write_action(armature, name, keys):
-    """Create an action from [(frame, pose), ...] and leave it on the armature."""
+def write_action(armature, name, keys, interpolation="BEZIER"):
+    """Create an action from [(frame, pose), ...] and leave it on the armature.
+
+    Bezier suits the locomotion cycles, which want easing. The recoil is keyed
+    LINEAR instead: its keys are sparse and its shape is already drawn by hand,
+    and Bezier's auto handles overshoot sparse keys badly - enough that the clip
+    was not landing back on the neutral pose at its last frame.
+    """
     action = bpy.data.actions.new(name)
     action.use_fake_user = True
     armature.animation_data.action = action
@@ -243,7 +249,7 @@ def write_action(armature, name, keys):
 
     for fc in action_curves(action).values():
         for kp in fc.keyframe_points:
-            kp.interpolation = "BEZIER"
+            kp.interpolation = interpolation
     return action
 
 
@@ -368,18 +374,35 @@ def main():
     ))
 
     # ---- shoot -----------------------------------------------------------
-    # A short kick on the chest and the rifle bone, on top of whatever aim
-    # offset gets applied below. Godot plays this on the upper body only, so he
-    # can fire in the middle of any locomotion clip. Positive pitch drives the
-    # muzzle up and the shoulders back, which is the direction recoil goes.
-    kick = pitch(stand, ["mixamorig:Spine2_21"], 17.0)
-    kick = pitch(kick, ["mixamorig:Spine1_22"], 5.0)
-    kick = pitch(kick, [GUN_BONE], 9.0)
-    settle = pitch(stand, ["mixamorig:Spine2_21"], 6.0)
-    settle = pitch(settle, [GUN_BONE], 3.0)
+    # The recoil, played on the upper body only so he can fire in the middle of
+    # any locomotion clip. Positive pitch drives the muzzle up and the shoulders
+    # back, which is the direction recoil goes.
+    #
+    # **The clip starts at the kick, not at rest.** The rifle fires about nine
+    # times a second and every shot seeks this clip back to its first frame, so
+    # a clip that opened on the neutral pose could never show anything but its
+    # own first third - and worse, every shot snapped back through neutral on
+    # the way, which read as a buzz rather than a recoil. Opening on the kick
+    # means a restart lands straight on maximum recoil, which is also what
+    # recoil actually does: it is instant, and only the recovery takes time.
+    #
+    # Almost all of the rotation goes on the chest rather than the rifle bone.
+    # The chest carries both arms and the rifle together, so the grip stays
+    # intact however hard it kicks; rotating the rifle bone alone slides the
+    # weapon out of his hands, so it gets only enough to flip the muzzle.
+    # The neck pitches back the other way, because the head hangs off the chest
+    # and would otherwise whip through the full angle nine times a second.
+    kick = pitch(stand, ["mixamorig:Spine2_21"], 11.0)
+    kick = pitch(kick, ["mixamorig:Spine1_22"], 4.0)
+    kick = pitch(kick, [GUN_BONE], 5.0)
+    kick = pitch(kick, ["mixamorig:Neck_2"], -8.0)
     built.append((
         "shoot",
-        [(0, stand), (1, kick), (4, settle), (9, stand)],
+        [(0, kick),
+         (2, blend(stand, kick, 0.55)),
+         (4, blend(stand, kick, 0.18)),
+         (6, blend(stand, kick, -0.08)),   # dips just past rest and comes back
+         (9, stand)],
         False,
     ))
 
@@ -389,7 +412,9 @@ def main():
 
     for name, keys, _loop in built:
         keys = [(f, aim(p)) for f, p in keys]
-        action = write_action(armature, name, keys)
+        action = write_action(
+            armature, name, keys,
+            interpolation="LINEAR" if name == "shoot" else "BEZIER")
         print("BUILT %-14s frames=%.0f..%.0f" % (
             name, action.frame_range[0], action.frame_range[1]))
 

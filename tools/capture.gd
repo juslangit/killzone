@@ -29,6 +29,10 @@ func _ready() -> void:
 		await _strafe()
 	elif "clips" in OS.get_cmdline_user_args():
 		await _clips()
+	elif "fire" in OS.get_cmdline_user_args():
+		await _fire_frames()
+	elif "recoil" in OS.get_cmdline_user_args():
+		await _recoil()
 	else:
 		await _tour()
 	get_tree().quit()
@@ -192,3 +196,99 @@ func _clips() -> void:
 		tree.set("parameters/ground/blend_position", probe[1])
 		await _wait(0.9)
 		await _shot(String(probe[0]))
+
+
+## A fixed close framing for the animation-review modes.
+##
+## Rather than computing a distance from a field of view and trusting it - which
+## was wrong twice, because how fov maps to the frame depends on keep_aspect -
+## this places the camera, measures where the character's head and feet actually
+## land on screen, and corrects. Two passes are enough, and it prints the result
+## so the framing is a checked number rather than something eyeballed.
+func _study_camera(fill := 0.78) -> void:
+	var player := get_node("/root/Capture/Main/Player") as Player
+	var rig := get_node("/root/Capture/Main/CameraRig")
+	var cam: Camera3D = rig._camera
+	rig.set_physics_process(false)
+	# Measure in the viewport's own coordinates, not the window's. The project
+	# stretches canvas items, so the visible rect is 1600x900 while the window -
+	# and the saved screenshot - is 1280x720. Mixing the two makes this loop
+	# converge on a framing that is right for neither. They share an aspect
+	# ratio, so a framing correct in viewport space is correct in the PNG too.
+	var view: Vector2 = get_viewport().get_visible_rect().size
+	# Measure how tall he actually is from the skeleton rather than assuming the
+	# height the build script aims for. Assuming 1.8 m put his head 215 px above
+	# the top of the frame, because the model imports at 2.74 m.
+	var sk: Skeleton3D = player.find_child("Skeleton3D", true, false)
+	var tall := 1.8
+	for i in sk.get_bone_count():
+		tall = maxf(tall, (sk.global_transform * sk.get_bone_global_pose(i)).origin.y
+			- player.global_position.y)
+	cam.fov = 40.0
+	cam.position = Vector3(0.0, 0.95, 3.4)
+	cam.rotation_degrees = Vector3.ZERO
+
+	var head := Vector2.ZERO
+	var feet := Vector2.ZERO
+	for pass_index in 3:
+		# Re-centre on the character every pass: he is what has to be framed.
+		rig.global_position = player.global_position
+		await get_tree().process_frame
+		head = cam.unproject_position(player.global_position + Vector3.UP * tall)
+		feet = cam.unproject_position(player.global_position)
+		var span: float = feet.y - head.y
+		if span < 1.0:
+			break
+		# Scale the distance by how far off the height is, and slide the camera
+		# up or down so the middle of him sits in the middle of the frame.
+		cam.position.z *= span / (fill * view.y)
+		# Raising the camera pushes the subject DOWN the frame, and sliding it
+		# right pushes him LEFT, so both corrections move with the error.
+		cam.position.y -= ((head.y + feet.y) * 0.5 - view.y * 0.5) / span * tall
+		cam.position.x += (head.x - view.x * 0.5) / span * tall
+	print("FRAME z=%.2f y=%.2f  head=%s feet=%s  fill=%.0f%%  model is %.2f m tall" % [
+		cam.position.z, cam.position.y, head.round(), feet.round(),
+		100.0 * (feet.y - head.y) / view.y, tall])
+
+
+## Consecutive frames while the trigger is held, close in and from three quarters
+## on, which is the angle the recoil has to read from. He aims normally at a
+## fixed point on screen and stands still, so nothing about firing is faked.
+func _fire_frames() -> void:
+	var player := get_node("/root/Capture/Main/Player") as Player
+	var rig := get_node("/root/Capture/Main/CameraRig")
+	var centre := Vector2(SIZE) * 0.5
+	Input.warp_mouse(centre + Vector2(430, 210))
+	await _wait(0.8)
+	await _study_camera()
+	await _wait(0.5)
+	await _shot("00_before")
+	Input.action_press("shoot")
+	for i in 11:
+		await _shot("%02d_firing" % (i + 1))
+		await _wait(0.035)
+	Input.action_release("shoot")
+	for i in 4:
+		await _wait(0.06)
+		await _shot("%02d_after" % (20 + i))
+
+
+## Isolate the recoil: freeze the player so nothing else writes to the tree, then
+## force the shoot blend fully on and step the clip through frame by frame. No
+## shot is fired, so no muzzle flash or tracer sits on top of the pose.
+func _recoil() -> void:
+	var player := get_node("/root/Capture/Main/Player") as Player
+	Input.warp_mouse(Vector2(SIZE) * 0.5 + Vector2(430, 120))
+	await _wait(0.9)
+	await _study_camera()
+	await _wait(0.4)
+	player.set_physics_process(false)
+	var tree := player.get_node("AnimationTree") as AnimationTree
+	tree.set("parameters/fire/blend_amount", 0.0)
+	await _wait(0.4)
+	await _shot("00_no_recoil")
+	tree.set("parameters/fire/blend_amount", 1.0)
+	tree.set("parameters/shoot_seek/seek_request", 0.0)
+	for i in 10:
+		await _shot("%02d_t%03d" % [i + 1, i * 33])
+		await _wait(0.0333)

@@ -25,8 +25,11 @@ const CROUCH_BLEND_SPEED := 9.0
 
 const FIRE_INTERVAL := 0.11
 const SHOOT_RANGE := 60.0
-const SHOOT_BLEND_SPEED := 22.0
-const SHOOT_DECAY := 5.0
+## How fast the upper body takes the recoil on, and lets go of it afterwards.
+const SHOOT_BLEND_SPEED := 40.0
+const SHOOT_DECAY := 6.0
+## The recoil clip is 0.30 s; stop holding the blend on once it has recovered.
+const SHOOT_HOLD := 0.26
 
 ## The rifle mesh, as the glTF importer names it. Godot already hangs it off a
 ## BoneAttachment3D for the rifle bone, so parenting the muzzle marker to it is
@@ -47,6 +50,7 @@ var _crouching := false
 var _crouch_blend := 0.0
 var _air_blend := 0.0
 var _shoot_blend := 0.0
+var _recoiling := false
 var _fire_cooldown := 0.0
 var _aim_point := Vector3.ZERO
 
@@ -187,8 +191,19 @@ func _update_shooting(delta: float) -> void:
 	if Input.is_action_pressed("shoot") and _fire_cooldown <= 0.0:
 		_fire_cooldown = FIRE_INTERVAL
 		_fire()
-		_shoot_blend = 1.0
+		_recoiling = true
+		# Seek the recoil back to its first frame, which is the kick itself.
 		_tree.set("parameters/shoot_seek/seek_request", 0.0)
+
+	# Ramp the upper body onto the recoil rather than snapping it there. The
+	# attack is fast enough to still land on the kick - two physics ticks - but
+	# not so fast that the first shot of a burst pops.
+	if _recoiling:
+		_shoot_blend = move_toward(_shoot_blend, 1.0, SHOOT_BLEND_SPEED * delta)
+		# Let go once the clip has played out, so the blend fades instead of
+		# being held on a recoil that has already finished recovering.
+		if _tree.get("parameters/shoot_seek/current_position") >= SHOOT_HOLD:
+			_recoiling = false
 	else:
 		_shoot_blend = move_toward(_shoot_blend, 0.0, SHOOT_DECAY * delta)
 
