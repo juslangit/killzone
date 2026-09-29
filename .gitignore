@@ -19,3 +19,6 @@
 
 # Development captures - regenerate with tools/capture.tscn
 dev/shots/
+
+# Project record: built locally, never committed (it holds session logs)
+docs/index.html
